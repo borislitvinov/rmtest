@@ -11,7 +11,7 @@ from rmtest import config
 REDIS_MODULE_PATH_ENVVAR = 'REDIS_MODULE_PATH'
 REDIS_PATH_ENVVAR = 'REDIS_PATH'
 REDIS_PORT_ENVVAR = 'REDIS_PORT'
-
+REDIS_HOST_ENVVAR = 'REDIS_HOST'
 
 class BaseModuleTestCase(unittest.TestCase):
     """
@@ -23,6 +23,7 @@ class BaseModuleTestCase(unittest.TestCase):
 
     def tearDown(self):
         if hasattr(self, '_server'):
+            self._client.flushall()
             self._server.stop()
             self._server = None
             self._client = None
@@ -142,6 +143,7 @@ def ModuleTestCase(module_path, redis_path='redis-server', module_args=None):
     module_path = config.REDIS_MODULE if config.REDIS_MODULE else module_path
     redis_path = config.REDIS_BINARY if config.REDIS_BINARY else redis_path
     fixed_port = config.REDIS_PORT if config.REDIS_PORT else None
+    db_address = config.REDIS_HOST
     port = fixed_port if fixed_port else None
 
     # If we have module args, create a list of arguments
@@ -158,7 +160,7 @@ def ModuleTestCase(module_path, redis_path='redis-server', module_args=None):
                 args += module_args
 
         def redis(self, **kwargs):
-            return DisposableRedis(port=port, path=redis_path,
+            return DisposableRedis(port=port, path=redis_path, host=db_address,
                                    loadmodule=self._loadmodule_args, **kwargs)
 
     return _ModuleTestCase

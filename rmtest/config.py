@@ -33,7 +33,9 @@ cfg.read(['rmtest.config'])
 entries = {
     'path': ConfigVar('REDIS_PATH', 'executable', 'redis-server'),
     'module': ConfigVar('REDIS_MODULE_PATH', 'module'),
-    'port': ConfigVar('REDIS_PORT', 'existing_port')
+    'port': ConfigVar('REDIS_PORT', 'existing_port'),
+    'host': ConfigVar('REDIS_HOST', 'db_address')
+    
 }
 
 for _, ent in entries.items():
@@ -50,5 +52,6 @@ for _, ent in entries.items():
 REDIS_BINARY = entries['path'].value
 REDIS_MODULE = entries['module'].value
 REDIS_PORT = entries['port'].value
+REDIS_HOST = entries['host'].value
 if REDIS_PORT:
     REDIS_PORT = int(REDIS_PORT)

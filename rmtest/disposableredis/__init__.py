@@ -28,11 +28,28 @@ def get_random_port():
         sock.close()
         return port
 
+def reload_cluster(cluster):
+    pass
+    
+
+class ShardClient(redis.StrictRedis):
+    INTERNAL_PASS = os.environ.get('INTERNAL_PASS', None)
+    SHARD_PORT = os.environ.get('SHARD_PORT', None)
+
+    def __init__(self,disposable_redis, host):
+        redis.StrictRedis.__init__(self, host = host, port = int(self.SHARD_PORT), password = self.INTERNAL_PASS )
+        self.dr = disposable_redis
+
+    def retry_with_rdb_reload(self):
+        yield 1
+        sys.stdout.write("Redis output: {}\n".format("In Shard client"))
+        self.dr.dump_and_reload()
+        yield 2
 
 class Client(redis.StrictRedis):
 
-    def __init__(self, disposable_redis, port):
-        redis.StrictRedis.__init__(self, port=port, decode_responses=True)
+    def __init__(self, disposable_redis, port, host='localhost'):
+        redis.StrictRedis.__init__(self, host=host, port=port, decode_responses=False)
         self.dr = disposable_redis
 
     def retry_with_rdb_reload(self):
@@ -43,7 +60,7 @@ class Client(redis.StrictRedis):
 
 class DisposableRedis(object):
 
-    def __init__(self, port=None, path='redis-server', **extra_args):
+    def __init__(self, port=None, path='redis-server', host=None, **extra_args):
         """
         :param port: port number to start the redis server on.
             Specify none to automatically generate
@@ -52,7 +69,6 @@ class DisposableRedis(object):
             be passed to redis server as --key val
         """
         self._port = port
-
         # this will hold the actual port the redis is listening on.
         # It's equal to `_port` unless `_port` is None
         # in that case `port` is randomly generated
@@ -68,7 +84,8 @@ class DisposableRedis(object):
             else:
                 self.extra_args.append(v)
 
-        self.path = path
+        self.host=host
+        self.path = path if host else None
         self.errored = False
         self.dumpfile = None
         self.aoffile = None
@@ -186,11 +203,10 @@ class DisposableRedis(object):
         """
         Dump the rdb and reload it, to test for serialization errors
         """
-        conn = self.client()
-
+        conn = self.client() if self.host == 'localhost' else self.shard_client()
         if restart_process:
             if self._is_external:
-                warnings.warn('Tied to an external process. Cannot restart')
+                warnings.warn('Tried to an external process. Cannot restart')
                 return
             conn.bgrewriteaof()
             self._wait_for_child()
@@ -209,4 +225,7 @@ class DisposableRedis(object):
         """
         :rtype: redis.StrictRedis
         """
-        return Client(self, self.port)
+        return Client(self, self.port, host=self.host)
+    
+    def shard_client(self):
+        return ShardClient(self, host=self.host)
